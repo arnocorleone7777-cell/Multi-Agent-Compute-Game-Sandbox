@@ -1,0 +1,60 @@
+// 指定使用 proto3 语法版本
+syntax = "proto3";
+
+// 定义 Java 端的包名（生成 Java 代码时会用到）
+option java_package = "com.genesis.sandbox.grpc";
+option java_multiple_files = true;
+
+// 定义统一的命名空间
+package sandbox;
+
+// =================================================================
+// 1. 核心服务定义 (Service Definition)
+// =================================================================
+service SandboxGateway {
+    // 双向流式 RPC (Bidirectional Streaming RPC)
+    // 关键字 stream 表示这是一个持续开放的 TCP 管道
+    // Python 可以随时推 Action，Java 可以随时推 State，互不阻塞
+    rpc SyncStream (stream AgentAction) returns (stream WorldState);
+}
+
+// =================================================================
+// 2. 世界状态数据结构 (Java -> Python 广播下发的数据)
+// =================================================================
+message WorldState {
+    int32 current_tick = 1;            // 当前的 Tick 轮次
+    repeated NodeState nodes = 2;      // 地图上的所有节点状态 (repeated 等同于 List/Array)
+    repeated AgentInfo agents = 3;     // 参与博弈的所有 Agent 的状态
+}
+
+// 物理节点的状态描述
+message NodeState {
+    string node_id = 1;                // 节点唯一标识
+    int32 current_compute = 2;         // 节点当前算力容量
+    string owner_agent_id = 3;         // 归属者ID (如果是无主节点，可以传 "UNOWNED")
+    repeated string connected_nodes = 4; // 相邻的节点ID（用于 Python 端重构拓扑图）
+}
+
+// Agent 的状态描述
+message AgentInfo {
+    string agent_id = 1;               // Agent 唯一标识
+    int32 current_compute = 2;         // Agent 手里的可用总算力
+}
+
+// =================================================================
+// 3. 行动指令数据结构 (Python -> Java 上传的决策)
+// =================================================================
+message AgentAction {
+    string agent_id = 1;               // 发起行动的 Agent
+    ActionType action_type = 2;        // 行动类型 (枚举)
+    string target_node_id = 3;         // 行动的目标节点
+    int32 invest_compute = 4;          // 投入的算力 (仅在 HACK 攻击时有效)
+}
+
+// 支持的行动枚举
+enum ActionType {
+    IDLE = 0;                          // 原地待命
+    MOVE = 1;                          // 移动到相邻节点
+    HACK = 2;                          // 发起攻击/抢夺
+    MINE = 3;                          // 原地驻守挖矿
+}
